@@ -267,18 +267,18 @@ AWSCognitoIdentityUserAttributeType* attribute(NSString *name, NSString *value) 
 }
 
 - (NSDictionary<NSString *,NSString *>*)cognitoValidationData {
-    UIDevice *device = [UIDevice currentDevice];
+//    UIDevice *device = [UIDevice currentDevice];
     NSBundle *bundle = [NSBundle mainBundle];
     NSString *bundleVersion = [bundle objectForInfoDictionaryKey:(NSString*)kCFBundleVersionKey];
     NSString *bundleShortVersion = [bundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
     NSMutableDictionary * result = [NSMutableDictionary new];
 
     NSArray * atts = @[
-                       attribute(@"cognito:iOSVersion", device.systemVersion),
-                       attribute(@"cognito:systemName", device.systemName),
-                       attribute(@"cognito:deviceName", device.name),
-                       attribute(@"cognito:model", device.model),
-                       attribute(@"cognito:idForVendor", device.identifierForVendor.UUIDString),
+                       attribute(@"cognito:iOSVersion", @"Unknown"),
+                       attribute(@"cognito:systemName", @"Unknown"),
+                       attribute(@"cognito:deviceName", @"Unknown"),
+                       attribute(@"cognito:model", @"Unknown"),
+                       attribute(@"cognito:idForVendor", @"Unknown"),
                        attribute(@"cognito:bundleId", bundle.bundleIdentifier),
                        attribute(@"cognito:bundleVersion", bundleVersion),
                        attribute(@"cognito:bundleShortV", bundleShortVersion)

@@ -13,7 +13,7 @@
 // permissions and limitations under the License.
 //
 
-import UIKit
+//import UIKit
 import XCTest
 import AWSDynamoDB
 

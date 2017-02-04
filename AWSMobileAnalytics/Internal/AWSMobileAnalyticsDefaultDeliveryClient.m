@@ -23,7 +23,7 @@
 #import "AWSMobileAnalyticsStringUtils.h"
 #import "AWSLogging.h"
 #import "AWSMObileAnalyticsDefaultSessionClient.h"
-#import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 #import "AWSMobileAnalyticsClientContext.h"
 
 NSUInteger const AWSMobileAnalyticsDefaultDeliveryClientMaxOperations = 1000;

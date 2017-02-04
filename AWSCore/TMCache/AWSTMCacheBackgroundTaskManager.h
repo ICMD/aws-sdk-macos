@@ -7,7 +7,7 @@
 //
 
 #if __IPHONE_OS_VERSION_MIN_REQUIRED >= __IPHONE_4_0
-#import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 #else
 typedef NSUInteger UIBackgroundTaskIdentifier;
 #endif

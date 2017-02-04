@@ -14,7 +14,7 @@
 //
 
 #import <sys/xattr.h>
-#import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 #import "AWSKSReachability.h"
 #import "AWSMobileAnalyticsIOSSystem.h"
 #import "AWSMobileAnalyticsIOSLifeCycleManager.h"

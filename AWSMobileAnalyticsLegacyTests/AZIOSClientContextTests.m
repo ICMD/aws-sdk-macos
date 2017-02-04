@@ -15,7 +15,7 @@
 
 #import "AZIOSClientContextTests.h"
 #import "AWSClientContext.h"
-#import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 #import "AWSMobileAnalyticsIOSSystem.h"
 #import "AWSMobileAnalyticsStringUtils.h"
 #import "AWSMockFileManager.h"

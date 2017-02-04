@@ -14,7 +14,7 @@
 //
 
 #import <Foundation/Foundation.h>
-#import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 
 @interface CognitoTestUtils : NSObject
 

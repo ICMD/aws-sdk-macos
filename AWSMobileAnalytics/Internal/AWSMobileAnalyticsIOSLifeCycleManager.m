@@ -14,7 +14,7 @@
 //
 
 #import "AWSMobileAnalyticsIOSLifeCycleManager.h"
-#import <UIKit/UIKit.h>
+#import <Foundation/Foundation.h>
 
 NSString* const AWSInsightsBackground = @"com.amazon.insights.AWSMobileAnalyticsIOSLifeCycleManager.background";
 NSString* const AWSInsightsForeground = @"com.amazon.insights.AWSMobileAnalyticsIOSLifeCycleManager.foreground";
