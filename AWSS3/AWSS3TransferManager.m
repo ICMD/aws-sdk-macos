@@ -177,7 +177,7 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
 }
 
 - (AWSTask *)upload:(AWSS3TransferManagerUploadRequest *)uploadRequest
-          cacheKey:(NSString *)cacheKey {
+           cacheKey:(NSString *)cacheKey {
     //validate input
     if ([uploadRequest.bucket length] == 0) {
         NSDictionary *userInfo = @{NSLocalizedDescriptionKey: NSLocalizedString(@"'bucket' name can not be empty", nil)};
@@ -235,12 +235,12 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
                 && task.error.code == NSURLErrorCancelled) {
                 if (uploadRequest.state == AWSS3TransferManagerRequestStatePaused) {
                     return [AWSTask taskWithError:[NSError errorWithDomain:AWSS3TransferManagerErrorDomain
-                                                                     code:AWSS3TransferManagerErrorPaused
-                                                                 userInfo:task.error.userInfo]];
+                                                                      code:AWSS3TransferManagerErrorPaused
+                                                                  userInfo:task.error.userInfo]];
                 } else {
                     return [AWSTask taskWithError:[NSError errorWithDomain:AWSS3TransferManagerErrorDomain
-                                                                     code:AWSS3TransferManagerErrorCancelled
-                                                                 userInfo:task.error.userInfo]];
+                                                                      code:AWSS3TransferManagerErrorCancelled
+                                                                  userInfo:task.error.userInfo]];
                 }
             } else {
                 return [AWSTask taskWithError:task.error];
@@ -256,8 +256,8 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
 }
 
 - (AWSTask *)putObject:(AWSS3TransferManagerUploadRequest *)uploadRequest
-             fileSize:(unsigned long long) fileSize
-             cacheKey:(NSString *)cacheKey {
+              fileSize:(unsigned long long) fileSize
+              cacheKey:(NSString *)cacheKey {
     uploadRequest.contentLength = [NSNumber numberWithUnsignedLongLong:fileSize];
     AWSS3PutObjectRequest *putObjectRequest = [AWSS3PutObjectRequest new];
     [putObjectRequest aws_copyPropertiesFromObject:uploadRequest];
@@ -286,8 +286,8 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
 }
 
 - (AWSTask *)multipartUpload:(AWSS3TransferManagerUploadRequest *)uploadRequest
-                   fileSize:(unsigned long long) fileSize
-                   cacheKey:(NSString *)cacheKey {
+                    fileSize:(unsigned long long) fileSize
+                    cacheKey:(NSString *)cacheKey {
     NSUInteger partCount = ceil((double)fileSize / AWSS3TransferManagerMinimumPartSize);
 
     AWSTask *initRequest = nil;
@@ -361,7 +361,7 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
                 uploadPartRequest.body = tempURL;
                 uploadPartRequest.contentLength = @(dataLength);
                 uploadPartRequest.uploadId = output.uploadId?output.uploadId:uploadRequest.uploadId;
-                
+
                 //pass SSE Value
                 uploadPartRequest.SSECustomerAlgorithm = uploadRequest.SSECustomerAlgorithm;
                 uploadPartRequest.SSECustomerKey = uploadRequest.SSECustomerKey;
@@ -434,8 +434,8 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
         if ([completedParts count] != partCount) {
             NSDictionary *userInfo = @{NSLocalizedDescriptionKey:[NSString stringWithFormat:@"completedParts count is not equal to totalPartCount. expect %lu but got %lu",(unsigned long)partCount,(unsigned long)[completedParts count]],@"completedParts":completedParts};
             return [AWSTask taskWithError:[NSError errorWithDomain:AWSS3TransferManagerErrorDomain
-                                                             code:AWSS3TransferManagerErrorUnknown
-                                                         userInfo:userInfo]];
+                                                              code:AWSS3TransferManagerErrorUnknown
+                                                          userInfo:userInfo]];
         }
 
         AWSS3CompletedMultipartUpload *completedMultipartUpload = [AWSS3CompletedMultipartUpload new];
@@ -483,7 +483,7 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
 }
 
 - (AWSTask *)download:(AWSS3TransferManagerDownloadRequest *)downloadRequest
-            cacheKey:(NSString *)cacheKey {
+             cacheKey:(NSString *)cacheKey {
 
     //validate input
     if ([downloadRequest.bucket length] == 0) {
@@ -536,15 +536,15 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
 
             downloadRequest.downloadingFileURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:generatedfileName]];
         }
-        
+
         //create a tempFileURL
         NSString *tempFileName = [[downloadRequest.downloadingFileURL lastPathComponent] stringByAppendingString:cacheKey];
         NSURL *tempFileURL = [NSURL fileURLWithPath:[NSTemporaryDirectory() stringByAppendingPathComponent:tempFileName]];
-        
+
         //save current downloadFileURL
         downloadRequest.originalFileURL = downloadRequest.downloadingFileURL;
 
-        
+
         //save the tempFileURL
         downloadRequest.temporaryFileURL = tempFileURL;
     } else {
@@ -587,13 +587,13 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
 }
 
 - (AWSTask *)getObject:(AWSS3TransferManagerDownloadRequest *)downloadRequest
-             cacheKey:(NSString *)cacheKey {
+              cacheKey:(NSString *)cacheKey {
     AWSS3GetObjectRequest *getObjectRequest = [AWSS3GetObjectRequest new];
     [getObjectRequest aws_copyPropertiesFromObject:downloadRequest];
 
     //set the downloadURL to use this tempURL instead.
     getObjectRequest.downloadingFileURL = downloadRequest.temporaryFileURL;
-    
+
     __weak AWSS3TransferManager *weakSelf = self;
 
     AWSTask *downloadTask = [[[weakSelf.s3 getObject:getObjectRequest] continueWithBlock:^id(AWSTask *task) {
@@ -602,19 +602,19 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
         if (downloadRequest.state != AWSS3TransferManagerRequestStatePaused) {
             [weakSelf.cache removeObjectForKey:cacheKey];
         }
-        
+
         NSURL *tempFileURL = downloadRequest.temporaryFileURL;
         NSURL *originalFileURL = downloadRequest.originalFileURL;
-        
+
         if (task.error) {
             //download got error, check if tempFile has been created.
             if ([[NSFileManager defaultManager] fileExistsAtPath:tempFileURL.path]) {
                 AWSLogDebug(@"tempFile has not been created yet.");
             }
-            
+
             return [AWSTask taskWithError:task.error];
         }
-        
+
         //If task complete without error, move the completed file to originalFileURL
         BOOL isTempFileExists = [[NSFileManager defaultManager] fileExistsAtPath:tempFileURL.path];
         if (isTempFileExists && originalFileURL) {
@@ -631,20 +631,20 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
                 return [AWSTask taskWithError:error];
             }
         }
-        
+
         AWSS3TransferManagerDownloadOutput *downloadOutput = [AWSS3TransferManagerDownloadOutput new];
         if (task.result) {
             AWSS3GetObjectOutput *getObjectOutput = task.result;
-            
+
             [downloadOutput aws_copyPropertiesFromObject:getObjectOutput];
-            
+
             //set the body to originalFileURL only if tempFileExists(file has been downloaded successfully)
             if (isTempFileExists) {
                 downloadOutput.body = downloadRequest.originalFileURL;
             }
 
         }
-        
+
         downloadRequest.state = AWSS3TransferManagerRequestStateCompleted;
         [downloadRequest setValue:nil forKey:@"internalRequest"];
         return downloadOutput;
@@ -655,12 +655,12 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
                 && task.error.code == NSURLErrorCancelled) {
                 if (downloadRequest.state == AWSS3TransferManagerRequestStatePaused) {
                     return [AWSTask taskWithError:[NSError errorWithDomain:AWSS3TransferManagerErrorDomain
-                                                                     code:AWSS3TransferManagerErrorPaused
-                                                                 userInfo:task.error.userInfo]];
+                                                                      code:AWSS3TransferManagerErrorPaused
+                                                                  userInfo:task.error.userInfo]];
                 } else {
                     return [AWSTask taskWithError:[NSError errorWithDomain:AWSS3TransferManagerErrorDomain
-                                                                     code:AWSS3TransferManagerErrorCancelled
-                                                                 userInfo:task.error.userInfo]];
+                                                                      code:AWSS3TransferManagerErrorCancelled
+                                                                  userInfo:task.error.userInfo]];
                 }
 
             } else {
