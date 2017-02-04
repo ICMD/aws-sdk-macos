@@ -41,11 +41,10 @@ NSString *const AWSS3TransferManagerUserAgentPrefix = @"transfer-manager";
 @interface AWSS3TransferManagerUploadRequest ()
 
 @property (nonatomic, assign) AWSS3TransferManagerRequestState state;
-@property (nonatomic, assign) NSUInteger currentUploadingPartNumber;
 @property (nonatomic, strong) NSMutableArray *completedPartsArray;
 @property (nonatomic, strong) NSString *uploadId;
 @property (nonatomic, strong) NSString *cacheIdentifier;
-@property (atomic, strong) AWSS3UploadPartRequest *currentUploadingPart;
+@property (nonatomic, strong) NSMutableArray *requestsArray;
 
 @property (atomic, assign) int64_t totalSuccessfullySentPartsDataLength;
 @end
@@ -294,7 +293,7 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
     __weak AWSS3TransferManager *weakSelf = self;
 
     //if it is a new request, Init multipart upload request
-    if (uploadRequest.currentUploadingPartNumber == 0) {
+    if (uploadRequest.completedPartsArray.count == 0) {
         AWSS3CreateMultipartUploadRequest *createMultipartUploadRequest = [AWSS3CreateMultipartUploadRequest new];
         [createMultipartUploadRequest aws_copyPropertiesFromObject:uploadRequest];
         [createMultipartUploadRequest setValue:[AWSNetworkingRequest new] forKey:@"internalRequest"]; //recreate a new internalRequest
@@ -319,16 +318,28 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
             completeMultipartUploadRequest.uploadId = uploadRequest.uploadId;
         }
 
-        AWSTask *uploadPartsTask = [AWSTask taskWithResult:nil];
-        NSUInteger c = uploadRequest.currentUploadingPartNumber;
-        if (c == 0) {
-            c = 1;
-        }
-
         __block int64_t multiplePartsTotalBytesSent = 0;
 
-        for (NSUInteger i = c; i < partCount + 1; i++) {
-            uploadPartsTask = [uploadPartsTask continueWithSuccessBlock:^id(AWSTask *task) {
+        NSMutableArray<AWSTask *> *tasks = [NSMutableArray array];
+        NSOperationQueue *queue = [[NSOperationQueue alloc] init];
+        queue.maxConcurrentOperationCount = 4;
+        AWSExecutor *executor = [AWSExecutor executorWithOperationQueue:queue];
+        [uploadRequest setValue:[NSMutableArray array] forKey:@"requestsArray"];
+
+        for (NSUInteger i = 1; i < partCount + 1; i++) {
+
+            NSMutableArray *completedParts = [uploadRequest valueForKey:@"completedPartsArray"];
+            @synchronized (completedParts) {
+                BOOL finished = NO;
+                for (AWSS3CompletedPart *completedPart in completedParts) {
+                    if (completedPart.partNumber.unsignedIntegerValue == i) {
+                        finished = YES;
+                        break;
+                    }
+                }
+                if (finished) { continue; }
+            }
+            [tasks addObject:[AWSTask taskFromExecutor:executor withBlock:^id _Nonnull{
 
                 //Cancel this task if state is canceling
                 if (uploadRequest.state == AWSS3TransferManagerRequestStateCanceling) {
@@ -338,7 +349,6 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
                 }
                 //Pause this task if state is Paused
                 if (uploadRequest.state == AWSS3TransferManagerRequestStatePaused) {
-
                     //return an error task
                     NSDictionary *userInfo = @{NSLocalizedDescriptionKey: [NSString stringWithFormat:NSLocalizedString(@"S3 MultipartUpload has been paused.", nil)]};
                     return [AWSTask taskWithError:[NSError errorWithDomain:AWSS3TransferManagerErrorDomain code:AWSS3TransferManagerErrorPaused userInfo:userInfo]];
@@ -367,21 +377,22 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
                 uploadPartRequest.SSECustomerKey = uploadRequest.SSECustomerKey;
                 uploadPartRequest.SSECustomerKeyMD5 = uploadRequest.SSECustomerKeyMD5;
 
-                uploadRequest.currentUploadingPart = uploadPartRequest; //retain the current uploading parts for cancel/pause purpose
+                [uploadRequest.requestsArray addObject:uploadPartRequest]; //retain current uploading parts for cancel/pause purpose
 
                 //reprocess the progressFeed received from s3 client
                 uploadPartRequest.uploadProgress = ^(int64_t bytesSent, int64_t totalBytesSent, int64_t totalBytesExpectedToSend) {
-
                     AWSNetworkingRequest *internalRequest = [uploadRequest valueForKey:@"internalRequest"];
-                    if (internalRequest.uploadProgress) {
-                        int64_t previousSentDataLengh = [[uploadRequest valueForKey:@"totalSuccessfullySentPartsDataLength"] longLongValue];
-                        if (multiplePartsTotalBytesSent == 0) {
-                            multiplePartsTotalBytesSent += bytesSent;
-                            multiplePartsTotalBytesSent += previousSentDataLengh;
-                            internalRequest.uploadProgress(bytesSent,multiplePartsTotalBytesSent,fileSize);
-                        } else {
-                            multiplePartsTotalBytesSent += bytesSent;
-                            internalRequest.uploadProgress(bytesSent,multiplePartsTotalBytesSent,fileSize);
+                    @synchronized(internalRequest) {
+                        if (internalRequest.uploadProgress) {
+                            int64_t previousSentDataLengh = [[uploadRequest valueForKey:@"totalSuccessfullySentPartsDataLength"] longLongValue];
+                            if (multiplePartsTotalBytesSent == 0) {
+                                multiplePartsTotalBytesSent += bytesSent;
+                                multiplePartsTotalBytesSent += previousSentDataLengh;
+                                internalRequest.uploadProgress(bytesSent,multiplePartsTotalBytesSent,fileSize);
+                            } else {
+                                multiplePartsTotalBytesSent += bytesSent;
+                                internalRequest.uploadProgress(bytesSent,multiplePartsTotalBytesSent,fileSize);
+                            }
                         }
                     }
                 };
@@ -395,21 +406,29 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
 
                     NSMutableArray *completedParts = [uploadRequest valueForKey:@"completedPartsArray"];
 
-                    if (![completedParts containsObject:completedPart]) {
-                        [completedParts addObject:completedPart];
+                    @synchronized (completedParts) {
+                        BOOL finished = NO;
+                        for (AWSS3CompletedPart *completedPart in completedParts) {
+                            if (completedPart.partNumber.unsignedIntegerValue == i) {
+                                finished = YES;
+                                break;
+                            }
+                        }
+                        if (!finished) {
+                            [completedParts addObject:completedPart];
+
+                            int64_t totalSentLenght = [[uploadRequest valueForKey:@"totalSuccessfullySentPartsDataLength"] longLongValue];
+                            totalSentLenght += dataLength;
+
+                            [uploadRequest setValue:@(totalSentLenght) forKey:@"totalSuccessfullySentPartsDataLength"];
+                        }
                     }
 
-                    int64_t totalSentLenght = [[uploadRequest valueForKey:@"totalSuccessfullySentPartsDataLength"] longLongValue];
-                    totalSentLenght += dataLength;
-
-                    [uploadRequest setValue:@(totalSentLenght) forKey:@"totalSuccessfullySentPartsDataLength"];
-
-                    //set currentUploadingPartNumber to i+1 to prevent it be downloaded again if pause happened right after parts finished.
-                    uploadRequest.currentUploadingPartNumber = i + 1;
                     [weakSelf.cache setObject:uploadRequest forKey:cacheKey];
 
                     return nil;
                 }] continueWithBlock:^id(AWSTask *task) {
+
                     NSError *error = nil;
                     [[NSFileManager defaultManager] removeItemAtURL:tempURL
                                                               error:&error];
@@ -423,14 +442,22 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
                         return nil;
                     }
                 }];
-            }];
+            }]];
         }
 
-        return uploadPartsTask;
+        return [[AWSTask taskForCompletionOfAllTasks:tasks] continueWithBlock:^id _Nullable(AWSTask * _Nonnull t) {
+            if (t.error) {
+                if (t.error.code == kAWSMultipleErrorsError) {
+                    return [AWSTask taskWithError:t.error.userInfo[@"errors"][0]]; }
+                else { return [AWSTask taskWithError:t.error]; }
+            }
+            else { return t; }
+        }];
     }] continueWithSuccessBlock:^id(AWSTask *task) {
 
         //If all parts upload succeed, send completeMultipartUpload request
         NSMutableArray *completedParts = [uploadRequest valueForKey:@"completedPartsArray"];
+        [completedParts sortUsingDescriptors:@[[[NSSortDescriptor alloc] initWithKey:@"partNumber" ascending:YES]]];
         if ([completedParts count] != partCount) {
             NSDictionary *userInfo = @{NSLocalizedDescriptionKey:[NSString stringWithFormat:@"completedParts count is not equal to totalPartCount. expect %lu but got %lu",(unsigned long)partCount,(unsigned long)[completedParts count]],@"completedParts":completedParts};
             return [AWSTask taskWithError:[NSError errorWithDomain:AWSS3TransferManagerErrorDomain
@@ -804,7 +831,9 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
         unsigned long long fileSize = [attributes fileSize];
         if (fileSize > AWSS3TransferManagerMinimumPartSize) {
             //If using multipart upload, need to cancel current parts upload and send AbortMultiPartUpload Request.
-            [self.currentUploadingPart cancel];
+            for (AWSS3UploadPartRequest *request in self.requestsArray) {
+                [request cancel];
+            }
 
         } else {
             //Otherwise, just call super to cancel current task.
@@ -835,7 +864,9 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
             unsigned long long fileSize = [attributes fileSize];
             if (fileSize > AWSS3TransferManagerMinimumPartSize) {
                 //If using multipart upload, need to check state flag and then pause the current parts upload and save the current status.
-                [self.currentUploadingPart pause];
+                for (AWSS3UploadPartRequest *request in self.requestsArray) {
+                    [request cancel];
+                }
             } else {
                 //otherwise, pause the current task. (cancel without set isCancelled flag)
                 [super pause];
