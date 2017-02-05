@@ -418,6 +418,8 @@
         }
 
         NSString *finalURL = [NSString stringWithFormat:@"%@%@", request.URL,rawURI];
+        finalURL = [finalURL stringByReplacingOccurrencesOfString:@"https://s3.amazonaws.com/utonal/"
+                                                       withString:@"https://utonal.s3-accelerate.amazonaws.com/"];
         request.URL = [NSURL URLWithString:finalURL];
         if (!request.URL) {
             if (error) {

@@ -153,7 +153,7 @@ NSString *const AWSSignatureV4Terminator = @"aws4_request";
             NSArray *hostArray  = [[[request URL] host] componentsSeparatedByString:@"."];
 
             [request setValue:credentials.sessionKey forHTTPHeaderField:@"X-Amz-Security-Token"];
-            if ([hostArray firstObject] && [[hostArray firstObject] rangeOfString:@"s3"].location != NSNotFound) {
+            if (([hostArray count] > 1 && [hostArray[1] isEqualToString:@"s3-accelerate"]) || ([hostArray firstObject] && [[hostArray firstObject] rangeOfString:@"s3"].location != NSNotFound)) {
                 //If it is a S3 Request
                 authorization = [self signS3RequestV4:request
                                          credentials:credentials];
@@ -219,7 +219,7 @@ NSString *const AWSSignatureV4Terminator = @"aws4_request";
         [urlRequest setValue:[NSString stringWithFormat:@"%lu", (unsigned long)[AWSS3ChunkedEncodingInputStream computeContentLengthForChunkedData:contentLength]]
           forHTTPHeaderField:@"Content-Length"];
         [urlRequest setValue:nil forHTTPHeaderField:@"Content-Length"]; //remove Content-Length header if it is a HTTPBodyStream
-        [urlRequest setValue:@"Chunked" forHTTPHeaderField:@"Transfer-Encoding"];
+        [urlRequest setValue:@"chunked" forHTTPHeaderField:@"Transfer-Encoding"];
         [urlRequest addValue:@"aws-chunked" forHTTPHeaderField:@"Content-Encoding"]; //add aws-chunked keyword for s3 chunk upload
         [urlRequest setValue:[NSString stringWithFormat:@"%lu", (unsigned long)contentLength] forHTTPHeaderField:@"x-amz-decoded-content-length"];
     } else {
