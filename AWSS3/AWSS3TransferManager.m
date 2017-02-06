@@ -397,7 +397,7 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
                     }
                 };
 
-                return [[[weakSelf.s3 uploadPart:uploadPartRequest] continueWithSuccessBlock:^id(AWSTask *task) {
+                AWSTask *task = [[[weakSelf.s3 uploadPart:uploadPartRequest] continueWithSuccessBlock:^id(AWSTask *task) {
                     AWSS3UploadPartOutput *partOuput = task.result;
 
                     AWSS3CompletedPart *completedPart = [AWSS3CompletedPart new];
@@ -442,6 +442,9 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
                         return nil;
                     }
                 }];
+
+                [task waitUntilFinished];
+                return task;
             }]];
         }
 
