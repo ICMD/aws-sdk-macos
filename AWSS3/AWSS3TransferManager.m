@@ -377,7 +377,9 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
                 uploadPartRequest.SSECustomerKey = uploadRequest.SSECustomerKey;
                 uploadPartRequest.SSECustomerKeyMD5 = uploadRequest.SSECustomerKeyMD5;
 
-                [uploadRequest.requestsArray addObject:uploadPartRequest]; //retain current uploading parts for cancel/pause purpose
+                @synchronized (uploadRequest.requestsArray) {
+                    [uploadRequest.requestsArray addObject:uploadPartRequest]; //retain current uploading parts for cancel/pause purpose
+                }
 
                 //reprocess the progressFeed received from s3 client
                 uploadPartRequest.uploadProgress = ^(int64_t bytesSent, int64_t totalBytesSent, int64_t totalBytesExpectedToSend) {
@@ -833,9 +835,12 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
                                                                                     error:nil];
         unsigned long long fileSize = [attributes fileSize];
         if (fileSize > AWSS3TransferManagerMinimumPartSize) {
-            //If using multipart upload, need to cancel current parts upload and send AbortMultiPartUpload Request.
-            for (AWSS3UploadPartRequest *request in self.requestsArray) {
-                [request cancel];
+
+            @synchronized (self.requestsArray) {
+                //If using multipart upload, need to cancel current parts upload and send AbortMultiPartUpload Request.
+                for (AWSS3UploadPartRequest *request in self.requestsArray) {
+                    [request cancel];
+                }
             }
 
         } else {
@@ -866,9 +871,11 @@ static AWSSynchronizedMutableDictionary *_serviceClients = nil;
                                                                                         error:nil];
             unsigned long long fileSize = [attributes fileSize];
             if (fileSize > AWSS3TransferManagerMinimumPartSize) {
-                //If using multipart upload, need to check state flag and then pause the current parts upload and save the current status.
-                for (AWSS3UploadPartRequest *request in self.requestsArray) {
-                    [request cancel];
+                @synchronized (self.requestsArray) {
+                    //If using multipart upload, need to check state flag and then pause the current parts upload and save the current status.
+                    for (AWSS3UploadPartRequest *request in self.requestsArray) {
+                        [request cancel];
+                    }
                 }
             } else {
                 //otherwise, pause the current task. (cancel without set isCancelled flag)
